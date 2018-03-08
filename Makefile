@@ -5,7 +5,7 @@ CFLAG = -I${INCLUDE_DIR} -Wall -O2
 
 CC = /usr/bin/gcc
 
-LDLIBS = -L${LIB_PATH} -lhiredis
+LDLIBS = -L${LIB_PATH} -lhiredis -lrt
 
 vpath %.c ${SRC_PATH}
 
