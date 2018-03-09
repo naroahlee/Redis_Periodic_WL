@@ -40,13 +40,36 @@ int  gs32period = 0;
 int  gs32count  = 0;
 int  gs32idx    = 0;
 char gaccmd[255];
+trace_event *gpstrData;
 redisContext* gpstrconn;
+
+
+int dump_data(trace_event* ptr, int s32cnt)
+{
+	int i;
+	double d64response;
+	FILE* fp;
+	fp = fopen("res.csv", "w");
+	if(NULL == fp)
+	{
+		exit(-3);
+	}
+
+	for(i = 0; i < s32cnt; i++)
+	{
+		d64response = (double)(ptr[i].finish - ptr[i].release) / MHZ;
+		fprintf(fp, "%lf\n", d64response);
+	}
+	
+	fclose(fp);
+	return 0;
+}
 
 /*
  * each job's work
  * record start time, finish time
  */
-static void release_query(int sig, siginfo_t *extra, void *cruft)
+void release_query(int sig, siginfo_t *extra, void *cruft)
 {
 	int i;
     redisReply *reply;
@@ -55,16 +78,22 @@ static void release_query(int sig, siginfo_t *extra, void *cruft)
 	if (gs32idx >= gs32count) {
         //sleep(2);              /* sleep for 10 sec, wait for other task to finish */
 		printf("Free Redis Connection...\n");
+		dump_data(gpstrData, gs32count);
+		free(gpstrData);
 		redisFree(gpstrconn);
         exit(1);
     }
 	i = gs32idx;
 	gs32idx++;
 
+    /* HSet a key */
 	sprintf(gaccmd, "HSET myset:%d element:%d xxx", rand(), rand());
-    /* Set a key */
+
+	gpstrData[i].release = rdtsc();
     reply = redisCommand(gpstrconn, gaccmd);
-	printf("[PYCLI] %d HSET: %lld\n", i, reply->integer);
+	gpstrData[i].finish  = rdtsc();
+
+	/* printf("[PYCLI] %d HSET: %lld\n", i, reply->integer); */
     freeReplyObject(reply);
 
 }
@@ -72,7 +101,7 @@ static void release_query(int sig, siginfo_t *extra, void *cruft)
 /*
  * Set affinity of the task, alwasy pin it to core 0
  */
-static void set_sched(int prio)
+void set_sched(int prio)
 {
 /*
     cpu_set_t mask;
@@ -91,7 +120,7 @@ static void set_sched(int prio)
     }
 }
 
-static void Usage(void)
+void Usage(void)
 {
     fprintf(stderr, "Usage: ./periodic_client -p period -n count\n");
     exit(EXIT_FAILURE);
@@ -162,6 +191,14 @@ int main(int argc, char **argv)
     }
 
     printf("period: %d, count: %d\n", gs32period, gs32count);
+
+	
+	gpstrData = (trace_event *)malloc(sizeof(trace_event) * gs32count);
+	if(NULL == gpstrData)
+	{
+		printf("No Enough Memory");
+		exit(-3);
+	}	
 
 	/* Set Sched */
 	set_sched(98);

@@ -17,7 +17,7 @@ all: ${ALL}
 
 
 clean:
-	rm -rf ${ALL} *.o
+	rm -rf ${ALL} *.o *.csv
 	clear
 
 update:
